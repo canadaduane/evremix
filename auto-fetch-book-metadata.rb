@@ -1,83 +1,75 @@
 require 'selenium-webdriver'
 require 'debugger'
 
-def click_search_tools(driver)
-  driver.find_element(:id, 'hdtb_tls').click
-
-  wait = Selenium::WebDriver::Wait.new(:timeout => 15)
-  wait.until { driver.find_element(:css => "div.hdtb-mn-hd:nth-child(6)") }
+def set_text(driver, input_name, text)
+  element = driver.find_element(:name => input_name)
+  element.clear
+  element.send_keys text
 end
 
-def set_date_range(driver, min, max)
-  wait = Selenium::WebDriver::Wait.new(:timeout => 15)
+def ngram_query driver, query
+  driver.navigate.to "http://books.google.com/ngrams/"
+  set_text driver, 'content', query
+  set_text driver, 'year_start', '1500'
+  set_text driver, 'year_end', '1830'
 
-  driver.find_element(:css, 'div.hdtb-mn-hd:nth-child(6)').click
-  wait.until { driver.find_element(:id => "cdrlnk") }
+  option = Selenium::WebDriver::Support::Select.new(driver.find_element(:name => "smoothing"))
+  option.select_by(:text, "0")
 
-  driver.find_element(:id, 'cdrlnk').click
-  wait.until { driver.find_element(:id => "cdr_min") }
+  button = driver.find_element(:css => '.query_submit_line > input:nth-child(1)')
+  button.click
 
-  begin # submit date range
-    element = driver.find_element(:id => 'cdr_min')
-    element.clear
-    element.send_keys "#{min}"
+  sleep 1
+end
 
-    element = driver.find_element(:id => 'cdr_max')
-    element.clear
-    element.send_keys "#{max}"
-
-    element = driver.find_element(:css => '#cdr_frm input[type=submit]')
-    element.click
+def suggested_book_searches(driver)
+  driver.find_elements(:css => "#container > blockquote a").select do |a|
+    a.text =~ /^\d+$/
+  end.map do |a|
+    a.attribute("href")
   end
-  wait.until { driver.find_element(:name => 'q') }
-  sleep 0.2
 end
 
 driver = Selenium::WebDriver.for :firefox
-driver.navigate.to "http://books.google.com"
 
-element = driver.find_element(:name => 'q')
-element.send_keys "testy"
-element.submit
-
-sleep 1
-
-click_search_tools driver
-set_date_range driver, 1500, 1830
+# ngram_query driver, "knowledge concerning these things"
+# p suggested_book_searches(driver)
+# exit
 
 File.open("rare-4grams-remaining.txt") do |file|
   file.each_line do |line|
     begin
       words = line.split(" ")[0..-2].join(" ")
-
-      element = driver.find_element(:name => 'q')
-      element.clear
-      element.send_keys %{"#{words}"}
-
-      element.submit
-
-      wait = Selenium::WebDriver::Wait.new(:timeout => 15)
-      wait.until { driver.find_element(:css => "li.g") }
-
-      sleep 3
-
       puts words
 
-      begin
-        no_results = driver.find_element(:css => "div.s:nth-child(1) > div:nth-child(1)")
-        if no_results.text =~ /no results found/i
-          puts "No results found"
-        end
-      rescue Selenium::WebDriver::Error::NoSuchElementError
-        driver.find_elements(:css => "li.g").each do |element|
-          puts element.text
-          puts
-        end
-      end
-      puts
+      ngram_query driver, words
+      suggested_book_searches(driver).each do |search_url|
+        driver.navigate.to search_url
 
-      sleep 3 + rand(4) + rand(2)
-    rescue Selenium::WebDriver::Error::StaleElementReferenceError
+        wait = Selenium::WebDriver::Wait.new(:timeout => 15)
+        wait.until { driver.find_element(:css => "li.g") }
+
+        sleep 3
+
+        begin
+          no_results = driver.find_element(:css => "div.s:nth-child(1) > div:nth-child(1)")
+          if no_results.text =~ /no results found/i
+            puts "No results found"
+          end
+        rescue Selenium::WebDriver::Error::NoSuchElementError
+          driver.find_elements(:css => "li.g").each do |element|
+            puts element.text
+            puts
+          end
+        end
+
+        sleep 3 + rand(4) + rand(2)
+      end
+    rescue Selenium::WebDriver::Error::StaleElementReferenceError,
+           Selenium::WebDriver::Error::TimeOutError
+      puts "Not found"
+    ensure
+      puts
     end
   end
 end

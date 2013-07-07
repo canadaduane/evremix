@@ -1,5 +1,4 @@
 require 'selenium-webdriver'
-require 'debugger'
 
 def set_text(driver, input_name, text)
   element = driver.find_element(:name => input_name)

@@ -6,5 +6,5 @@ echo "Creating dir $ROOT"
 mkdir "$ROOT"
 for N in 1 2 3 4 5 6; do
   echo "Making ${N}-grams"
-  cat "$SOURCE_TEXT" | ruby "$DIR/make-ngrams.rb" $N | sort | uniq >"$ROOT/${N}-grams.txt"
+  $DIR/mkngrams -b -n $N "$SOURCE_TEXT" | sort -c | uniq | gzip -c >"$ROOT/${N}-grams.txt.gz"
 done

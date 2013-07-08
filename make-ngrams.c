@@ -10,9 +10,9 @@
 
 #define BUFSIZE 65535
 #define MAXN 20
-char readbuf[BUFSIZE], writebuf[2][BUFSIZE];
-int writebuf_page = 0;
-long writebuf_i = 0;
+char readbuf[BUFSIZE];
+char words[MAXN][BUFSIZE];
+int word_lengths[MAXN];
 
 inline int letter(int c) {
   if (c >= 'A' && c <= 'Z') return c - 'A' + 'a';
@@ -21,100 +21,58 @@ inline int letter(int c) {
   return 0;
 }
 
-void writeflush(int fd) {
-  if (writebuf_i > 0) {
-    write(fd, writebuf[writebuf_page], writebuf_i);
-    // Swap pages
-    writebuf_page = !writebuf_page;
-    // Start at beginning of page
-    writebuf_i = 0;
-  }
+inline void word_print(int fd, int word_i, char trailing_char) {
+  words[word_i][word_lengths[word_i]] = trailing_char;
+  write(fd, words[word_i], word_lengths[word_i] + 1);
 }
 
-inline void writechar(int fd, char c) {
-  writebuf[writebuf_page][writebuf_i++] = c;
-  assert(writebuf_i <= BUFSIZE);
-  if (writebuf_i == BUFSIZE) writeflush(fd);
+inline void word_addchar(int word_i, char c) {
+  assert(word_i < BUFSIZE);
+  words[word_i][word_lengths[word_i]++] = c;
+}
+
+inline void word_clear(int word_i) {
+  word_lengths[word_i] = 0;
+}
+
+void print_words(int fd, int start_i, int max_i) {
+  int j;
+  for (j = 0; j < max_i; j++) {
+    word_print(fd,
+      (start_i + j) % max_i,
+      j == max_i - 1 ? '\n' : ' ');
+  }
 }
 
 int main(int argc, char* argv[]) {
   int stdin = open("/dev/stdin", O_RDONLY);
   int stdout = open("/dev/stdout", O_WRONLY);
   int bytes;
-  long i;
-  int words = 1, words_per_phrase = 5;
+  long i, j;
+  int words_per_phrase = 4;
+  int word_i;
+  int word_count = 0;
+
   assert(words_per_phrase <= MAXN);
-
-  int repeat_page = 0;
-  long repeat_i = 0, repeat_target = 0;
-
-  int word_page[MAXN];
-  long word_i[MAXN];
-
-  for (i = 0; i < MAXN; i++) {
-    word_page[i] = 0;
-    word_i[i] = 0;
-  }
 
   char this_char = 0, last_char = 0;
 
   while ((bytes = read(stdin, readbuf, BUFSIZE)) != 0) {
     for (i = 0; i < bytes; i++) {
       this_char = letter(readbuf[i]);
-      switch(this_char) {
-        case 0:
-          // Skip the character
-          break;
-        case ' ':
-          // Word delimiter
-          if (last_char != ' ') {
-            writechar(stdout, ' ');
-            // if (words >= words_per_phrase) {
-            //   writechar(stdout, '\n');
-            // }
+      if (this_char == ' ' || (bytes < BUFSIZE && i == bytes-1)) {
+        // Word delimiter
+        if (last_char != ' ') {
+          word_count++;
+          if (word_count >= words_per_phrase) {
+            print_words(stdout, word_count, words_per_phrase);
+            word_clear((word_count) % words_per_phrase);
           }
-          break;
-        default:
-
-          if (last_char == ' ') {
-            // Bookmark the start of the word
-            word_i[words % words_per_phrase] = writebuf_i;
-            word_page[words % words_per_phrase] = writebuf_page;
-            words++;
-
-            dprintf(stdout, "1: %ld, 2: %ld, 3: %ld, 4: %ld, 5: %ld\n",
-              word_i[0], word_i[1], word_i[2], word_i[3], word_i[4]);
-
-            // After printing the first word in a line,
-            // print the next n-1 words
-            if (words > words_per_phrase) {
-              repeat_i = word_i[words % words_per_phrase];
-              repeat_page = word_page[words % words_per_phrase];
-
-              // writechar(stdout, ' ');
-              repeat_target = writebuf_i;
-              while (repeat_i != repeat_target) {
-                writechar(stdout, writebuf[repeat_page][repeat_i++]);
-                if (repeat_i == BUFSIZE) {
-                  repeat_i = 0;
-                  repeat_page = !repeat_page;
-                }
-              }
-              writechar(stdout, '\n');
-            } else {
-              // writechar(stdout, ' ');
-            }
-            // Acceptable character
-            writechar(stdout, this_char);
-          } else {
-            // Acceptable character
-            writechar(stdout, this_char);
-          }
+        }
+      } else {
+        word_addchar(word_count % words_per_phrase, this_char);
       }
       last_char = this_char;
     }
   }
-  // Final clear write buf
-  writechar(stdout, '\n');
-  writeflush(stdout);
 }

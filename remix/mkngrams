@@ -20,11 +20,12 @@ end.parse!
 if ARGV.size > 0
 # Use files as input
   ARGV.each do |filename|
-    File.open(filename) do |file|
+    File.open(filename, :encoding => "UTF-8") do |file|
       Remix.mkngrams(file, options[:output], options[:n], options[:blanks])
     end
   end
 else
 # Use stdin as input
+  $stdin.set_encoding "UTF-8"
   Remix.mkngrams($stdin, options[:output], options[:n], options[:blanks])
 end

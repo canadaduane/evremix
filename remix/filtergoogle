@@ -14,11 +14,12 @@ end.parse!
 if ARGV.size > 0
 # Use files as input
   ARGV.each do |filename|
-    File.open(filename) do |file|
+    File.open(filename, :encoding => "UTF-8") do |file|
       Remix.filter_google_watermark(file, options[:output])
     end
   end
 else
 # Use stdin as input
+  $stdin.set_encoding "UTF-8"
   Remix.filter_google_watermark($stdin, options[:output])
 end

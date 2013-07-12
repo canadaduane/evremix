@@ -20,5 +20,6 @@ if ARGV.size > 0
   end
 else
 # Use stdin as input
+  $stdin.set_encoding "UTF-8"
   Remix.clean_text($stdin, options[:output])
 end

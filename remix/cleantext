@@ -1,0 +1,24 @@
+#!/usr/bin/env ruby
+require 'optparse'
+require_relative 'remix'
+
+options = {:output => $stdout}
+OptionParser.new do |opts|
+  opts.banner = "Usage: cleantext [options] [FILES]"
+
+  opts.on("-o", "--output FILENAME", "Send output to filename") do |filename|
+    options[:output] = File.open(filename, "w")
+  end
+end.parse!
+
+if ARGV.size > 0
+# Use files as input
+  ARGV.each do |filename|
+    File.open(filename) do |file|
+      Remix.clean_text(file, options[:output])
+    end
+  end
+else
+# Use stdin as input
+  Remix.clean_text($stdin, options[:output])
+end
